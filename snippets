@@ -78,7 +78,7 @@ X_test_features = dbn.transform(X_test)
 # Train an SVM on the extracted features
 svm = SVC(kernel='linear')
 svm.fit(X_train_features, y_train)
-
+    
 # Evaluate the SVM on the test set
 accuracy = svm.score(X_test_features, y_test)
 print("Accuracy:", accuracy)
@@ -88,3 +88,65 @@ In this example, we first generate some synthetic data and split it into trainin
  data using StandardScaler. We then train a DBN on the training set and use it to transform both the training and testing sets into a
   new feature space. Finally, we train an SVM on the transformed training set and evaluate its performance on the transformed testing set.
   Note that in practice, you may need to tune the hyperparameters of both the DBN and the SVM to achieve optimal performance.
+
+
+
+Transfer learning is a technique where a pre-trained model is used as a starting point for training a new model on a different task or dataset.
+In the context of a DBN-SVM machine, transfer learning can be used to speed up the training process and improve the performance of the model, especially when dealing with limited data.
+
+Here's a general approach for implementing transfer learning for a DBN-SVM machine:
+
+Choose a pre-trained DBN model: You can use a pre-trained DBN model that was trained on a similar task or dataset.
+Alternatively, you can train a DBN model on a large dataset and use it as a starting point for your transfer learning.
+
+Freeze the DBN layers: Freeze the lower layers of the pre-trained DBN model, as they are already optimized for feature extraction.
+This means that the weights and biases of these layers will not be updated during the training process.
+
+Train the SVM on the output of the frozen DBN layers: Extract the features from the pre-trained DBN model for your dataset and train the SVM on these features.
+ This can be done by passing the data through the DBN model and extracting the activations of the last hidden layer.
+
+Fine-tune the entire model: Once the SVM has been trained on the output of the frozen DBN layers, fine-tune the entire model by unfreezing the DBN layers and training the entire model end-to-end.
+This allows the model to learn task-specific features from the data while also preserving the general features learned by the pre-trained DBN model.
+
+Here's an example implementation of transfer learning for a DBN-SVM machine using Python and the scikit-learn and DeepLearning4j libraries:
+
+
+from sklearn.datasets import load_digits
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from dl4j_svm import DBNModel
+
+# Load the digits dataset
+digits = load_digits()
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(digits.data, digits.target, test_size=0.2, random_state=42)
+
+# Preprocess the data using StandardScaler
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Load a pre-trained DBN model
+pretrained_model = DBNModel.loadModelFromFile("pretrained_model.bin")
+
+# Freeze the lower layers of the DBN model
+for layer in pretrained_model.getLayers()[:-1]:
+    layer.setBackpropagation(false)
+
+# Extract features from the pre-trained DBN model
+X_train_features = pretrained_model.output(X_train_scaled)
+X_test_features = pretrained_model.output(X_test_scaled)
+
+# Train an SVM on the extracted features
+svm = SVC(C=1.0, kernel="linear", random_state=42)
+svm.fit(X_train_features, y_train)
+svm_score = svm.score(X_test_features, y_test)
+print("SVM score after transfer learning: {:.3f}".format(svm_score))
+
+# Fine-tune the entire model
+dbn_svm = DBNModel.loadModelFromFile("pretrained_model.bin")
+dbn_svm.backprop(X_train_scaled, y_train, 0.01, 0.9, 1000)
+dbn_svm_score = dbn_svm.evaluate(X_test_scaled, y_test)
+print("DBN-SVM score after fine-tuning: {:.3f}".format(dbn_svm_score))
